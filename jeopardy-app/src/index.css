@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap');
+
+@theme {
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  --color-board: #06149a;
+  --color-tile: #1565C0;
+  --color-tile-answered: #374151;
+  --color-gold: #FFD700;
+  --color-page-bg: #050F2F;
+  --color-modal-bg: #050F2F;
+  --color-score-neg: #ef4444;
+  --color-score-pos: #FFD700;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-page-bg);
+  color: white;
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
