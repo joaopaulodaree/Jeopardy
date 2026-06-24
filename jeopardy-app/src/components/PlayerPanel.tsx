@@ -7,6 +7,7 @@ interface Props {
   onScore: (playerId: string, delta: number) => void;
   onSetScore: (playerId: string, score: number) => void;
   onReset: () => void;
+  onDeclareWinner: () => void;
 }
 
 function scoreColor(score: number): string {
@@ -43,7 +44,7 @@ const btnStyle = (bg: string): React.CSSProperties => ({
   flexShrink: 0,
 });
 
-export function PlayerPanel({ players, runtime, activeClue, onScore, onSetScore, onReset }: Props) {
+export function PlayerPanel({ players, runtime, activeClue, onScore, onSetScore, onReset, onDeclareWinner }: Props) {
   const delta = activeClue?.value ?? 0;
 
   return (
@@ -109,6 +110,28 @@ export function PlayerPanel({ players, runtime, activeClue, onScore, onSetScore,
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />
+
+      {/* Declare Winner button */}
+      {players.length > 0 && (
+        <button
+          onClick={onDeclareWinner}
+          style={{
+            height: '40px',
+            padding: '0 16px',
+            backgroundColor: 'var(--color-gold)',
+            border: 'none',
+            borderRadius: '6px',
+            color: '#050F2F',
+            fontFamily: 'var(--font-display)',
+            fontSize: '0.9rem',
+            letterSpacing: '0.05em',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+        >
+          DECLARE WINNER
+        </button>
+      )}
 
       {/* Reset button */}
       <button

@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Game, RuntimeState, Clue } from './types';
 import { makeDefaultGame } from './utils/makeDefaultGame';
 import { serializeForStorage } from './utils/serializeForStorage';
+import { getAllMedia } from './utils/mediaStore';
 import { GameBoard } from './components/GameBoard';
 import { ClueModal } from './components/ClueModal';
 import { PlayerPanel } from './components/PlayerPanel';
 import { GameEditor } from './components/GameEditor';
 import { FinalScores } from './components/FinalScores';
+import { WinnerCelebration } from './components/WinnerCelebration';
 import './index.css';
 
 const GAME_DEF_KEY = 'jeopardy-game-definition';
@@ -53,7 +55,29 @@ export default function App() {
   const [activeClue, setActiveClue] = useState<{ clue: Clue; value: number } | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [boardRevealed, setBoardRevealed] = useState(false);
+  const [showWinner, setShowWinner] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // On mount, load blob URLs for local-file media from IndexedDB
+  useEffect(() => {
+    getAllMedia().then(idbData => {
+      setGame(prev => ({
+        ...prev,
+        categories: prev.categories.map(cat => ({
+          ...cat,
+          clues: cat.clues.map(clue => ({
+            ...clue,
+            media: clue.media?.idbKey && idbData[clue.media.idbKey]
+              ? { ...clue.media, blobUrl: idbData[clue.media.idbKey] }
+              : clue.media,
+            answerMedia: clue.answerMedia?.idbKey && idbData[clue.answerMedia.idbKey]
+              ? { ...clue.answerMedia, blobUrl: idbData[clue.answerMedia.idbKey] }
+              : clue.answerMedia,
+          })),
+        })),
+      }));
+    }).catch(() => {});
+  }, []);
 
   // Debounced autosave of game definition
   useEffect(() => {
@@ -232,6 +256,7 @@ export default function App() {
         onScore={handleScore}
         onSetScore={handleSetScore}
         onReset={handleReset}
+        onDeclareWinner={() => setShowWinner(true)}
       />
 
       {/* ClueModal */}
@@ -250,6 +275,15 @@ export default function App() {
           runtime={runtime}
           onPlayAgain={handlePlayAgain}
           onNewGame={handleNewGame}
+        />
+      )}
+
+      {/* Winner Celebration overlay */}
+      {showWinner && (
+        <WinnerCelebration
+          players={game.players}
+          runtime={runtime}
+          onDismiss={() => setShowWinner(false)}
         />
       )}
 

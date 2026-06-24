@@ -174,7 +174,7 @@ export function ClueModal({ clue, value, onClose }: Props) {
             flex: '0 0 auto',
           }}
         >
-          {clue.question || <em style={{ opacity: 0.5 }}>No question text</em>}
+          {clue.question}
         </div>
 
         {/* Media (question state) */}
@@ -193,7 +193,7 @@ export function ClueModal({ clue, value, onClose }: Props) {
                 flex: '0 0 auto',
               }}
             >
-              {clue.answer || <em style={{ opacity: 0.5 }}>No answer provided</em>}
+              {clue.answer}
             </div>
             {clue.answerMedia && <MediaDisplay clue={{ ...clue, media: clue.answerMedia }} />}
           </>

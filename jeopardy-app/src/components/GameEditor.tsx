@@ -3,6 +3,7 @@ import type { Game, Category, Clue, Media } from '../types';
 import { detectMediaType } from '../utils/detectMediaType';
 import { validateImport } from '../utils/validateImport';
 import { serializeForStorage } from '../utils/serializeForStorage';
+import { saveMedia, deleteMedia, getAllMedia } from '../utils/mediaStore';
 import { getClueValue } from '../utils/getClueValue';
 
 interface Props {
@@ -26,7 +27,7 @@ function MediaRow({
   onClear: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const url = media?.blobUrl ?? media?.externalUrl ?? '';
+  const url = media?.externalUrl ?? '';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
       <div style={{ display: 'flex', gap: '6px' }}>
@@ -51,7 +52,7 @@ function MediaRow({
       {media && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>
-            {media.type} — {media.blobUrl ? 'local file' : (media.externalUrl ?? '').slice(0, 40) + '...'}
+            {media.type} — {media.idbKey ? 'local file' : (media.externalUrl ?? '').slice(0, 40) + '...'}
           </span>
           <button onClick={onClear} style={{ ...smallButtonStyle, backgroundColor: 'transparent', color: '#ef4444', fontSize: '0.72rem', padding: '2px 6px' }}>
             Remove
@@ -73,21 +74,30 @@ function ClueForm({
 }) {
   function handleMediaUrl(key: 'media' | 'answerMedia', url: string) {
     if (!url.trim()) { onChange({ ...clue, [key]: null }); return; }
+    const old = clue[key];
+    if (old?.idbKey) deleteMedia(old.idbKey).catch(() => {});
     const type = detectMediaType(url);
     onChange({ ...clue, [key]: { type, blobUrl: null, externalUrl: url } });
   }
 
   function handleMediaFile(key: 'media' | 'answerMedia', file: File) {
     const type: Media['type'] = file.type.startsWith('image/') ? 'image' : 'video';
-    const blobUrl = URL.createObjectURL(file);
-    const old = clue[key];
-    if (old?.blobUrl) URL.revokeObjectURL(old.blobUrl);
-    onChange({ ...clue, [key]: { type, blobUrl, externalUrl: null } });
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = (e.target?.result as string) ?? null;
+      if (!dataUrl) return;
+      const idbKey = crypto.randomUUID();
+      saveMedia(idbKey, dataUrl).catch(() => {});
+      const old = clue[key];
+      if (old?.idbKey) deleteMedia(old.idbKey).catch(() => {});
+      onChange({ ...clue, [key]: { type, blobUrl: dataUrl, externalUrl: null, idbKey } });
+    };
+    reader.readAsDataURL(file);
   }
 
   function handleMediaClear(key: 'media' | 'answerMedia') {
     const old = clue[key];
-    if (old?.blobUrl) URL.revokeObjectURL(old.blobUrl);
+    if (old?.idbKey) deleteMedia(old.idbKey).catch(() => {});
     onChange({ ...clue, [key]: null });
   }
 
@@ -275,9 +285,30 @@ export function GameEditor({ game, saveStatus, onGameChange, onSwitchToGame }: P
     onGameChange({ ...game, players });
   }
 
-  function handleExport() {
-    const data = serializeForStorage(game);
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  async function handleExport() {
+    const idbData = await getAllMedia().catch(() => ({} as Record<string, string>));
+    const exportGame = {
+      ...game,
+      categories: game.categories.map(cat => ({
+        ...cat,
+        clues: cat.clues.map(clue => ({
+          ...clue,
+          media: clue.media ? {
+            ...clue.media,
+            blobUrl: null,
+            idbKey: undefined,
+            base64: clue.media.idbKey ? (idbData[clue.media.idbKey] ?? null) : null,
+          } : null,
+          answerMedia: clue.answerMedia ? {
+            ...clue.answerMedia,
+            blobUrl: null,
+            idbKey: undefined,
+            base64: clue.answerMedia.idbKey ? (idbData[clue.answerMedia.idbKey] ?? null) : null,
+          } : null,
+        })),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(exportGame, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -289,14 +320,31 @@ export function GameEditor({ game, saveStatus, onGameChange, onSwitchToGame }: P
   function handleImport(file: File) {
     const reader = new FileReader();
     reader.onload = e => {
-      try {
-        const raw = JSON.parse(e.target?.result as string);
-        const imported = validateImport(raw);
-        onGameChange(imported);
-        showToast(`Game loaded: ${imported.title} (${imported.categories.length} categories, ${imported.categories.reduce((n, c) => n + c.clues.filter(cl => cl.question).length, 0)} clues)`);
-      } catch (err) {
-        showToast(`Import failed: ${(err as Error).message}`);
+      const text = e.target?.result as string;
+      async function doImport() {
+        try {
+          const raw = JSON.parse(text);
+          const imported = validateImport(raw);
+          // Migrate any inline base64 media from the JSON into IDB
+          for (const cat of imported.categories) {
+            for (const clue of cat.clues) {
+              for (const mk of ['media', 'answerMedia'] as const) {
+                const m = clue[mk] as (Media & { base64?: string | null }) | null;
+                if (m?.base64) {
+                  const idbKey = crypto.randomUUID();
+                  await saveMedia(idbKey, m.base64);
+                  clue[mk] = { type: m.type, blobUrl: m.base64, externalUrl: null, idbKey };
+                }
+              }
+            }
+          }
+          onGameChange(imported);
+          showToast(`Game loaded: ${imported.title} (${imported.categories.length} categories, ${imported.categories.reduce((n, c) => n + c.clues.filter(cl => cl.question).length, 0)} clues)`);
+        } catch (err) {
+          showToast(`Import failed: ${(err as Error).message}`);
+        }
       }
+      doImport();
     };
     reader.readAsText(file);
   }

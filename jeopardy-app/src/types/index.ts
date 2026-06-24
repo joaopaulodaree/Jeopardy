@@ -2,6 +2,8 @@ export interface Media {
   type: 'image' | 'video' | 'youtube' | 'link';
   blobUrl: string | null;
   externalUrl: string | null;
+  idbKey?: string | null;   // persisted in localStorage; references IndexedDB entry for local files
+  base64?: string | null;   // only present in exported JSON for portability; never saved to localStorage
 }
 
 export interface Clue {

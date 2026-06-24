@@ -7,8 +7,8 @@ export function serializeForStorage(game: Game): Game {
       ...cat,
       clues: cat.clues.map(clue => ({
         ...clue,
-        media: clue.media ? { ...clue.media, blobUrl: null } : null,
-        answerMedia: clue.answerMedia ? { ...clue.answerMedia, blobUrl: null } : null,
+        media: clue.media ? { ...clue.media, blobUrl: null, base64: undefined } : null,
+        answerMedia: clue.answerMedia ? { ...clue.answerMedia, blobUrl: null, base64: undefined } : null,
       })),
     })),
   };
